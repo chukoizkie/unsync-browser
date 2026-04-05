@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import FirstLaunch from './FirstLaunch';
 
 const IconBack    = () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
 const IconForward = () => <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
@@ -9,15 +10,14 @@ const IconMesh    = () => <svg width="12" height="12" viewBox="0 0 12 12" fill="
 
 const HOME_URL = 'https://unsync.uk';
 let tabIdCounter = 0;
-
 function makeTab(url = HOME_URL) {
   return { id: ++tabIdCounter, url, displayUrl: url, title: 'New Tab', loading: false, canGoBack: false, canGoForward: false };
 }
-
 function normalizeUrl(input) {
   const t = input.trim();
   if (!t) return HOME_URL;
-  if (t.endsWith('.unsync') || t.startsWith('unsync://')) return t;
+  if (t.endsWith('.unsync')) return `unsync://${t.replace('.unsync','')}`;
+  if (t.startsWith('unsync://')) return t;
   if (/^https?:\/\//i.test(t)) return t;
   if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(t)) return `https://${t}`;
   return `https://search.brave.com/search?q=${encodeURIComponent(t)}`;
@@ -44,7 +44,7 @@ function TrafficLight({ color, onClick, title }) {
   );
 }
 
-function TitleBar() {
+function TitleBar({ identity, meshConnected }) {
   const ctrl = window.electronAPI;
   return (
     <div style={{ display:'flex', alignItems:'center', height:'var(--titlebar-h)', padding:'0 12px', WebkitAppRegion:'drag', flexShrink:0, borderBottom:'1px solid var(--border-subtle)' }}>
@@ -53,9 +53,15 @@ function TitleBar() {
         <TrafficLight color="#febc2e" onClick={() => ctrl?.windowMinimize()} title="Minimize" />
         <TrafficLight color="#28c840" onClick={() => ctrl?.windowMaximize()} title="Maximize" />
       </div>
-      <div style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}>
-        <span style={{ color:'var(--accent-mesh)', display:'flex', alignItems:'center' }}><IconMesh /></span>
-        <span style={{ fontSize:11, fontWeight:600, color:'var(--text-dim)', fontFamily:'var(--font-ui)', letterSpacing:'0.08em', textTransform:'uppercase' }}>UnSync</span>
+      <div style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', gap:8 }}>
+        <span style={{ color: meshConnected ? 'var(--accent-mesh)' : 'var(--text-dim)', display:'flex', alignItems:'center', transition:'color 0.3s' }}><IconMesh /></span>
+        {identity
+          ? <span style={{ fontSize:11, fontWeight:600, color:'var(--text-dim)', fontFamily:'var(--font-mono)', letterSpacing:'0.04em' }}>@{identity.handle}</span>
+          : <span style={{ fontSize:11, fontWeight:600, color:'var(--text-dim)', fontFamily:'var(--font-ui)', letterSpacing:'0.08em', textTransform:'uppercase' }}>UnSync</span>
+        }
+        <span style={{ fontSize:9, color: meshConnected ? 'var(--accent-mesh)' : '#333', fontFamily:'var(--font-mono)', transition:'color 0.3s' }}>
+          {meshConnected ? '● online' : '○ offline'}
+        </span>
       </div>
       <div style={{ width:58, flexShrink:0 }} />
     </div>
@@ -79,7 +85,7 @@ function TabItem({ tab, active, onActivate, onClose }) {
 
 function FloatingIsland({ tab, onNavigate, onBack, onForward, onReload, onStop }) {
   const [inputValue, setInputValue] = useState('');
-  const [focused, setFocused] = useState(false);
+  const [focused, setFocused]       = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => { if (!focused) setInputValue(tab?.displayUrl || ''); }, [tab?.displayUrl, focused]);
@@ -90,14 +96,14 @@ function FloatingIsland({ tab, onNavigate, onBack, onForward, onReload, onStop }
   };
 
   const isSecure  = tab?.displayUrl?.startsWith('https://');
-  const isMesh    = tab?.displayUrl?.includes('.unsync');
+  const isMesh    = tab?.displayUrl?.startsWith('unsync://') || tab?.displayUrl?.includes('.unsync');
   const isLoading = tab?.loading;
 
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'10px 16px 8px', WebkitAppRegion:'drag' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:0, height:'var(--island-h)', background:'var(--island-bg)', border:`1px solid ${focused ? 'rgba(100,200,255,0.22)' : 'var(--island-border)'}`, borderRadius:'var(--radius-pill)', boxShadow: focused ? '0 8px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(100,200,255,0.15)' : 'var(--island-shadow)', width:'100%', maxWidth:720, overflow:'hidden', transition:'border-color 0.2s ease, box-shadow 0.2s ease', WebkitAppRegion:'no-drag' }}>
+      <div style={{ display:'flex', alignItems:'center', height:'var(--island-h)', background:'var(--island-bg)', border:`1px solid ${focused ? 'rgba(100,200,255,0.22)' : isMesh ? 'rgba(0,255,204,0.15)' : 'var(--island-border)'}`, borderRadius:'var(--radius-pill)', boxShadow: focused ? '0 8px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(100,200,255,0.15)' : 'var(--island-shadow)', width:'100%', maxWidth:720, overflow:'hidden', transition:'border-color 0.2s ease, box-shadow 0.2s ease', WebkitAppRegion:'no-drag' }}>
 
-        <div style={{ display:'flex', alignItems:'center', padding:'0 4px 0 8px', gap:0, flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', padding:'0 4px 0 8px', flexShrink:0 }}>
           <NavBtn onClick={onBack}    disabled={!tab?.canGoBack}    title="Back"><IconBack /></NavBtn>
           <NavBtn onClick={onForward} disabled={!tab?.canGoForward} title="Forward"><IconForward /></NavBtn>
           <NavBtn onClick={isLoading ? onStop : onReload}           title={isLoading ? 'Stop' : 'Reload'}>
@@ -117,21 +123,21 @@ function FloatingIsland({ tab, onNavigate, onBack, onForward, onReload, onStop }
           onFocus={() => { setFocused(true); setInputValue(tab?.displayUrl || ''); setTimeout(() => inputRef.current?.select(), 0); }}
           onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
-          placeholder="Search or enter .unsync address"
+          placeholder="Search, URL, or @handle.unsync"
           spellCheck={false} autoComplete="off"
           style={{ flex:1, background:'transparent', border:'none', outline:'none', color: focused ? 'var(--text-primary)' : 'var(--text-secondary)', fontFamily:'var(--font-mono)', fontSize:12.5, padding:'0 4px', transition:'color 0.15s ease' }}
         />
 
-        {isLoading && <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent-cyan)', marginRight:12, flexShrink:0, animation:'pulse 1s ease-in-out infinite' }} />}
+        {isLoading && <div style={{ width:6, height:6, borderRadius:'50%', background: isMesh ? 'var(--accent-mesh)' : 'var(--accent-cyan)', marginRight:12, flexShrink:0, animation:'pulse 1s ease-in-out infinite' }} />}
       </div>
     </div>
   );
 }
 
-function NewTabPage() {
+function NewTabPage({ identity, meshConnected }) {
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:24, background:'var(--bg-void)', fontFamily:'var(--font-ui)' }}>
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style={{ opacity:0.5 }}>
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style={{ opacity: meshConnected ? 0.9 : 0.4, transition:'opacity 0.5s' }}>
         <circle cx="32" cy="32" r="8" fill="var(--accent-mesh)" opacity="0.8"/>
         <circle cx="8"  cy="8"  r="5" fill="var(--accent-cyan)" opacity="0.5"/>
         <circle cx="56" cy="8"  r="5" fill="var(--accent-cyan)" opacity="0.5"/>
@@ -140,19 +146,47 @@ function NewTabPage() {
         <path d="M12 12L25 25M52 12L39 25M12 52L25 39M52 52L39 39" stroke="var(--accent-cyan)" strokeWidth="1.5" opacity="0.3"/>
       </svg>
       <div style={{ textAlign:'center' }}>
-        <p style={{ fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em' }}>UnSync Browser</p>
-        <p style={{ fontSize:12, color:'var(--text-dim)', marginTop:6, fontFamily:'var(--font-mono)' }}>mesh-native · sovereign · private</p>
+        {identity
+          ? <p style={{ fontSize:20, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em' }}>Welcome, <span style={{ color:'var(--accent-mesh)' }}>@{identity.handle}</span></p>
+          : <p style={{ fontSize:22, fontWeight:700, color:'var(--text-primary)' }}>UnSync Browser</p>
+        }
+        <p style={{ fontSize:12, color: meshConnected ? 'var(--accent-mesh)' : 'var(--text-dim)', marginTop:6, fontFamily:'var(--font-mono)', transition:'color 0.3s' }}>
+          {meshConnected ? '● connected to mesh' : '○ mesh · offline'}
+        </p>
       </div>
+      <p style={{ fontSize:11, color:'#333', fontFamily:'var(--font-mono)' }}>
+        try typing @someone.unsync in the address bar
+      </p>
     </div>
   );
 }
 
 export default function App() {
-  const [tabs, setTabs]           = useState([makeTab(HOME_URL)]);
-  const [activeTabId, setActiveTabId] = useState(1);
+  const [identity, setIdentity]         = useState(null);
+  const [identityLoaded, setIdentityLoaded] = useState(false);
+  const [meshConnected, setMeshConnected]   = useState(false);
+  const [tabs, setTabs]                 = useState([makeTab(HOME_URL)]);
+  const [activeTabId, setActiveTabId]   = useState(1);
   const webviewRefs = useRef({});
 
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+
+  // Load identity on mount
+  useEffect(() => {
+    window.electronAPI.loadIdentity().then(id => {
+      setIdentity(id);
+      setIdentityLoaded(true);
+    });
+
+    // Mesh status updates from main process
+    window.electronAPI.onMeshStatus(({ connected, peerId }) => {
+      setMeshConnected(connected);
+    });
+  }, []);
+
+  const handleIdentityCreated = (id) => {
+    setIdentity(id);
+  };
 
   const addTab = () => {
     const t = makeTab('about:blank');
@@ -170,9 +204,8 @@ export default function App() {
   };
 
   const updateTab = (id, patch) => setTabs(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t));
-
-  const getWv    = id => webviewRefs.current[id];
-  const navigate = url => { getWv(activeTabId)?.loadURL(url); updateTab(activeTabId, { url, displayUrl: url, loading: true }); };
+  const getWv     = id => webviewRefs.current[id];
+  const navigate  = url => { getWv(activeTabId)?.loadURL(url); updateTab(activeTabId, { url, displayUrl: url, loading: true }); };
   const goBack    = () => getWv(activeTabId)?.goBack();
   const goForward = () => getWv(activeTabId)?.goForward();
   const reload    = () => getWv(activeTabId)?.reload();
@@ -202,12 +235,25 @@ export default function App() {
 
   const isBlank = url => !url || url === 'about:blank';
 
+  // Wait for identity check
+  if (!identityLoaded) return (
+    <div style={{ width:'100%', height:'100%', background:'#080808', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <span style={{ color:'#333', fontFamily:'monospace', fontSize:12 }}>initializing…</span>
+    </div>
+  );
+
+  // First launch
+  if (!identity) return (
+    <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column' }}>
+      <TitleBar identity={null} meshConnected={false} />
+      <FirstLaunch onComplete={handleIdentityCreated} />
+    </div>
+  );
+
   return (
     <div style={{ display:'flex', flexDirection:'column', width:'100%', height:'100%', background:'var(--bg-void)', overflow:'hidden' }}>
+      <TitleBar identity={identity} meshConnected={meshConnected} />
 
-      <TitleBar />
-
-      {/* Tab strip */}
       <div style={{ display:'flex', alignItems:'flex-end', padding:'4px 12px 0', gap:2, background:'var(--bg-void)', borderBottom:'1px solid var(--border-subtle)', flexShrink:0, WebkitAppRegion:'drag', overflowX:'auto', overflowY:'hidden' }}>
         {tabs.map(tab => (
           <div key={tab.id} style={{ WebkitAppRegion:'no-drag' }}>
@@ -221,31 +267,27 @@ export default function App() {
           title="New tab (Ctrl+T)">+</button>
       </div>
 
-      {/* Floating island */}
       <div style={{ background:'var(--bg-void)', flexShrink:0 }}>
         <FloatingIsland tab={activeTab} onNavigate={navigate} onBack={goBack} onForward={goForward} onReload={reload} onStop={stop} />
       </div>
 
-      {/* Content */}
       <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
         {tabs.map(tab => (
           <div key={tab.id} style={{ position:'absolute', inset:0, display: tab.id === activeTabId ? 'flex' : 'none', flexDirection:'column' }}>
-            {isBlank(tab.url) ? <NewTabPage /> : (
-              <webview ref={el => el && bindWebview(el, tab.id)} src={tab.url}
-                style={{ flex:1, width:'100%', border:'none' }}
-                allowpopups="true" partition="persist:unsync" />
-            )}
+            {isBlank(tab.url)
+              ? <NewTabPage identity={identity} meshConnected={meshConnected} />
+              : <webview ref={el => el && bindWebview(el, tab.id)} src={tab.url} style={{ flex:1, width:'100%', border:'none' }} allowpopups="true" partition="persist:unsync" />
+            }
           </div>
         ))}
       </div>
 
-      {/* Status bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', height:22, padding:'0 12px', background:'var(--bg-void)', borderTop:'1px solid var(--border-subtle)', flexShrink:0 }}>
         <span style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-dim)' }}>
           {activeTab?.loading ? 'Loading…' : activeTab?.displayUrl || 'Ready'}
         </span>
-        <span style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--accent-mesh)', display:'flex', alignItems:'center', gap:4 }}>
-          <IconMesh /> mesh · offline
+        <span style={{ fontSize:10, fontFamily:'var(--font-mono)', color: meshConnected ? 'var(--accent-mesh)' : 'var(--text-dim)', display:'flex', alignItems:'center', gap:4, transition:'color 0.3s' }}>
+          <IconMesh /> {meshConnected ? `mesh · ${identity?.peerId?.slice(0,12)}…` : 'mesh · offline'}
         </span>
       </div>
     </div>
