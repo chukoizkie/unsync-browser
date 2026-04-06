@@ -10,18 +10,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createIdentity: (handle) => ipcRenderer.invoke('create-identity', handle),
   loadIdentity:   ()       => ipcRenderer.invoke('load-identity'),
 
-  // Mesh status
-  onMeshStatus:  (cb) => ipcRenderer.on('mesh-status',  (_, data) => cb(data)),
-  onMeshKnock:   (cb) => ipcRenderer.on('mesh-knock',   (_, data) => cb(data)),
-
-  // WebRTC signaling bridge
+  // Mesh
+  onMeshStatus:  (cb) => ipcRenderer.on('mesh-status',  (_, d) => cb(d)),
+  onMeshKnock:   (cb) => ipcRenderer.on('mesh-knock',   (_, d) => cb(d)),
   meshSend:      (msg) => ipcRenderer.send('mesh-send', msg),
-  onMeshSignal:  (cb)  => ipcRenderer.on('mesh-signal', (_, data) => cb(data)),
+  onMeshSignal:  (cb)  => ipcRenderer.on('mesh-signal', (_, d) => cb(d)),
   meshKnock:     (targetPeerId) => ipcRenderer.invoke('mesh-knock', targetPeerId),
-  getPeerId:     ()    => ipcRenderer.invoke('get-peer-id'),
+  getPeerId:     () => ipcRenderer.invoke('get-peer-id'),
 
   // DHT
   dhtResolve:    (handle) => ipcRenderer.invoke('dht-resolve', handle),
   dhtStats:      ()       => ipcRenderer.invoke('dht-stats'),
-  onDhtUpdate:   (cb)     => ipcRenderer.on('dht-update', (_, data) => cb(data)),
+  onDhtUpdate:   (cb)     => ipcRenderer.on('dht-update', (_, d) => cb(d)),
+
+  // Content server
+  serveRequest:  (requestPath) => ipcRenderer.invoke('serve-request', { requestPath }),
+  getServeDir:   ()            => ipcRenderer.invoke('get-serve-dir'),
 });

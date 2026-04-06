@@ -1,8 +1,9 @@
 const { app, BrowserWindow, ipcMain, protocol } = require('electron');
 const { generateIdentity, loadIdentity } = require('./identity');
-const mesh        = require('./mesh');
-const dht         = require('./dht');
-const unsyncProto = require('./unsync-protocol');
+const mesh          = require('./mesh');
+const dht           = require('./dht');
+const unsyncProto   = require('./unsync-protocol');
+const contentServer = require('./content-server');
 
 if (require('electron-squirrel-startup')) app.quit();
 
@@ -56,15 +57,25 @@ app.whenReady().then(async () => {
   });
 
   // Mesh signaling bridge
-  ipcMain.on('mesh-send',       (_, msg) => mesh.sendSignal(msg));
-  ipcMain.handle('mesh-knock',  (_, targetPeerId) => mesh.knock(targetPeerId));
-  ipcMain.handle('get-peer-id', () => mesh.getPeerId());
+  ipcMain.on('mesh-send',        (_, msg)          => mesh.sendSignal(msg));
+  ipcMain.handle('mesh-knock',   (_, targetPeerId) => mesh.knock(targetPeerId));
+  ipcMain.handle('get-peer-id',  ()                => mesh.getPeerId());
 
-  // DHT IPC
-  ipcMain.handle('dht-resolve', (_, handle) => dht.resolve(handle));
-  ipcMain.handle('dht-stats',   ()           => dht.stats());
+  // DHT
+  ipcMain.handle('dht-resolve',  (_, handle) => dht.resolve(handle));
+  ipcMain.handle('dht-stats',    ()           => dht.stats());
 
-  // Auto-connect + DHT init if identity exists
+  // Content server
+  ipcMain.handle('serve-request', (_, { requestPath }) => {
+    const identity = loadIdentity();
+    if (!identity) return { status: 503, mime: 'text/plain', data: null, text: 'No identity' };
+    const result = contentServer.serve(requestPath, identity);
+    // Can't send Buffer over IPC directly — convert to base64
+    return { status: result.status, mime: result.mime, data: result.data.toString('base64') };
+  });
+  ipcMain.handle('get-serve-dir', () => contentServer.getServeDir());
+
+  // Auto-connect if identity exists
   const existing = loadIdentity();
   if (existing) {
     mesh.connect(existing);
