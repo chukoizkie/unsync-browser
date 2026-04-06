@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, protocol } = require('electron');
 const { generateIdentity, loadIdentity } = require('./identity');
 const mesh        = require('./mesh');
+const dht         = require('./dht');
 const unsyncProto = require('./unsync-protocol');
 
 if (require('electron-squirrel-startup')) app.quit();
@@ -50,21 +51,25 @@ app.whenReady().then(async () => {
   ipcMain.handle('create-identity', (_, handle) => {
     const identity = generateIdentity(handle);
     mesh.connect(identity);
+    dht.init(identity.handle, identity.peerId);
     return identity;
   });
 
-  // Mesh signaling bridge — renderer sends, we forward to WS
-  ipcMain.on('mesh-send', (_, msg) => mesh.sendSignal(msg));
-
-  // Knock
-  ipcMain.handle('mesh-knock', (_, targetPeerId) => mesh.knock(targetPeerId));
-
-  // Own peerId
+  // Mesh signaling bridge
+  ipcMain.on('mesh-send',       (_, msg) => mesh.sendSignal(msg));
+  ipcMain.handle('mesh-knock',  (_, targetPeerId) => mesh.knock(targetPeerId));
   ipcMain.handle('get-peer-id', () => mesh.getPeerId());
 
-  // Auto-connect if identity exists
+  // DHT IPC
+  ipcMain.handle('dht-resolve', (_, handle) => dht.resolve(handle));
+  ipcMain.handle('dht-stats',   ()           => dht.stats());
+
+  // Auto-connect + DHT init if identity exists
   const existing = loadIdentity();
-  if (existing) mesh.connect(existing);
+  if (existing) {
+    mesh.connect(existing);
+    dht.init(existing.handle, existing.peerId);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
