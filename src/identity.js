@@ -1,33 +1,25 @@
-const forge = require('node-forge');
-const fs    = require('fs');
-const path  = require('path');
+const fs   = require('fs');
+const path = require('path');
 const { app } = require('electron');
+const crypto = require('crypto');
 
 const IDENTITY_PATH = path.join(app.getPath('userData'), 'identity.json');
 
-function generatePeerId(publicKeyPem) {
-  const md = forge.md.sha256.create();
-  md.update(publicKeyPem);
-  return 'browser-' + md.digest().toHex().slice(0, 32);
-}
-
 function generateIdentity(handle) {
-  // Generate ed25519 keypair
-  const keypair = forge.pki.ed25519.generateKeyPair();
-  const publicKeyPem  = forge.pki.publicKeyToPem(
-    forge.pki.setRsaPublicKey(keypair.publicKey)
-  );
+  // Use Node's built-in crypto instead of node-forge for cross-platform compat
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
 
-  // Use SHA256 of public key as stable peerId
-  const md = forge.md.sha256.create();
-  md.update(Buffer.from(keypair.publicKey).toString('binary'));
-  const peerId = 'browser-' + md.digest().toHex().slice(0, 32);
+  const pubKeyBuffer  = publicKey.export({ type: 'spki', format: 'der' });
+  const privKeyBuffer = privateKey.export({ type: 'pkcs8', format: 'der' });
+
+  const hash   = crypto.createHash('sha256').update(pubKeyBuffer).digest('hex');
+  const peerId = 'browser-' + hash.slice(0, 32);
 
   const identity = {
     handle,
     peerId,
-    publicKey:  Buffer.from(keypair.publicKey).toString('base64'),
-    privateKey: Buffer.from(keypair.privateKey).toString('base64'),
+    publicKey:  pubKeyBuffer.toString('base64'),
+    privateKey: privKeyBuffer.toString('base64'),
     createdAt:  Date.now(),
   };
 
@@ -37,11 +29,8 @@ function generateIdentity(handle) {
 
 function loadIdentity() {
   if (!fs.existsSync(IDENTITY_PATH)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(IDENTITY_PATH, 'utf8'));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(fs.readFileSync(IDENTITY_PATH, 'utf8')); }
+  catch { return null; }
 }
 
 module.exports = { generateIdentity, loadIdentity, IDENTITY_PATH };
