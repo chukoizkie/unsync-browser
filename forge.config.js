@@ -14,6 +14,7 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-deb',
+      platforms: ['linux'],
       config: {
         options: {
           name: 'unsync-browser',
@@ -30,8 +31,18 @@ module.exports = {
       },
     },
     {
+      name: '@electron-forge/maker-squirrel',
+      platforms: ['win32'],
+      config: {
+        name: 'unsync-browser',
+        setupExe: 'UnSyncBrowserSetup.exe',
+        setupIcon: './assets/icon.ico',
+        description: 'A mesh-native browser — sovereign, private, P2P',
+      },
+    },
+    {
       name: '@electron-forge/maker-zip',
-      platforms: ['linux'],
+      platforms: ['darwin', 'linux'],
     },
   ],
   plugins: [
