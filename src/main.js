@@ -5,7 +5,6 @@ const unsyncProto = require('./unsync-protocol');
 
 if (require('electron-squirrel-startup')) app.quit();
 
-// Register unsync:// as a privileged scheme before app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'unsync', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
@@ -35,12 +34,10 @@ const createWindow = () => {
 };
 
 app.whenReady().then(async () => {
-  // Register .unsync protocol handler
   unsyncProto.register();
-
   createWindow();
 
-  // IPC: window controls
+  // Window controls
   ipcMain.on('window-minimize', () => mainWindow.minimize());
   ipcMain.on('window-maximize', () => {
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
@@ -48,20 +45,26 @@ app.whenReady().then(async () => {
   });
   ipcMain.on('window-close', () => mainWindow.close());
 
-  // IPC: identity
-  ipcMain.handle('load-identity',    ()       => loadIdentity());
-  ipcMain.handle('create-identity',  (_, handle) => {
+  // Identity
+  ipcMain.handle('load-identity', () => loadIdentity());
+  ipcMain.handle('create-identity', (_, handle) => {
     const identity = generateIdentity(handle);
-    // Connect to mesh immediately after identity creation
     mesh.connect(identity);
     return identity;
   });
 
-  // Auto-connect if identity already exists
+  // Mesh signaling bridge — renderer sends, we forward to WS
+  ipcMain.on('mesh-send', (_, msg) => mesh.sendSignal(msg));
+
+  // Knock
+  ipcMain.handle('mesh-knock', (_, targetPeerId) => mesh.knock(targetPeerId));
+
+  // Own peerId
+  ipcMain.handle('get-peer-id', () => mesh.getPeerId());
+
+  // Auto-connect if identity exists
   const existing = loadIdentity();
-  if (existing) {
-    mesh.connect(existing);
-  }
+  if (existing) mesh.connect(existing);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

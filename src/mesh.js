@@ -3,13 +3,13 @@ const WebSocket = require('ws');
 const SIGNAL_URL = 'wss://signal.unsync.uk';
 const RELAY_URL  = 'wss://relay.unsync.uk';
 
-let signalWs  = null;
-let relayWs   = null;
-let peerId    = null;
-let connected = false;
+let signalWs   = null;
+let relayWs    = null;
+let peerId     = null;
+let connected  = false;
 let mainWindow = null;
 
-const pendingKnocks = new Map(); // handle -> { resolve, reject, timeout }
+const pendingKnocks = new Map();
 
 function init(window) {
   mainWindow = window;
@@ -26,15 +26,8 @@ function connectSignal() {
 
   signalWs.on('open', () => {
     connected = true;
-    console.log('[mesh] signaling connected');
-
-    // Same registration format as Unsync messenger
-    signalWs.send(JSON.stringify({
-      type:     'register',
-      id:       peerId,
-      fcmToken: null,
-    }));
-
+    console.log('[mesh] signaling connected as', peerId);
+    signalWs.send(JSON.stringify({ type: 'register', id: peerId, fcmToken: null }));
     notifyRenderer('mesh-status', { connected: true, peerId });
   });
 
@@ -47,69 +40,63 @@ function connectSignal() {
   signalWs.on('close', () => {
     connected = false;
     notifyRenderer('mesh-status', { connected: false, peerId });
-    console.log('[mesh] signaling disconnected — retrying in 5s');
+    console.log('[mesh] disconnected — retrying in 5s');
     setTimeout(connectSignal, 5000);
   });
 
   signalWs.on('error', (err) => {
-    console.error('[mesh] signaling error:', err.message);
+    console.error('[mesh] error:', err.message);
   });
 }
 
 function connectRelay() {
   relayWs = new WebSocket(RELAY_URL);
-
   relayWs.on('open', () => {
     relayWs.send(JSON.stringify({ type: 'register', id: peerId }));
-    console.log('[mesh] relay connected');
   });
-
-  relayWs.on('close', () => {
-    setTimeout(connectRelay, 5000);
-  });
-
-  relayWs.on('error', () => {}); // silent retry
+  relayWs.on('close', () => setTimeout(connectRelay, 5000));
+  relayWs.on('error', () => {});
 }
 
 function handleSignalMessage(msg) {
-  // Knock response — peer found or offline
+  // Knock response
   if (msg.type === 'knock_response' || msg.type === 'peer_offline') {
-    const knock = pendingKnocks.get(msg.targetId || msg.to);
+    const knock = pendingKnocks.get(msg.targetId || msg.to || msg.from);
     if (knock) {
       clearTimeout(knock.timeout);
-      pendingKnocks.delete(msg.targetId || msg.to);
-      knock.resolve({
-        online: msg.type === 'knock_response',
-        peerId: msg.targetId || msg.to,
-      });
+      pendingKnocks.delete(msg.targetId || msg.to || msg.from);
+      knock.resolve({ online: msg.type === 'knock_response', peerId: msg.from || msg.targetId });
     }
+    // Also forward to renderer for MeshPage
+    notifyRenderer('mesh-signal', msg);
+    return;
   }
 
-  // Incoming knock from another peer
-  if (msg.type === 'knock') {
-    notifyRenderer('mesh-knock', { from: msg.from });
+  // WebRTC signaling — forward straight to renderer
+  if (['knock', 'offer', 'answer', 'ice'].includes(msg.type)) {
+    notifyRenderer('mesh-signal', msg);
+    return;
   }
 }
 
-// Knock a .unsync handle's peerId — returns { online, peerId }
+// Send knock then offer from renderer
+function sendSignal(msg) {
+  if (!connected || !signalWs) return;
+  signalWs.send(JSON.stringify(msg));
+}
+
+// Knock a peer — used by MeshPage before sending offer
 function knock(targetPeerId) {
-  return new Promise((resolve, reject) => {
-    if (!connected || !signalWs) {
-      return resolve({ online: false, peerId: targetPeerId });
-    }
+  return new Promise((resolve) => {
+    if (!connected || !signalWs) return resolve({ online: false });
 
     const timeout = setTimeout(() => {
       pendingKnocks.delete(targetPeerId);
-      resolve({ online: false, peerId: targetPeerId });
+      resolve({ online: false });
     }, 8000);
 
-    pendingKnocks.set(targetPeerId, { resolve, reject, timeout });
-
-    signalWs.send(JSON.stringify({
-      type: 'knock',
-      from: peerId,
-      to:   targetPeerId,
-    }));
+    pendingKnocks.set(targetPeerId, { resolve, timeout });
+    signalWs.send(JSON.stringify({ type: 'knock', from: peerId, to: targetPeerId }));
   });
 }
 
@@ -122,4 +109,4 @@ function notifyRenderer(channel, data) {
   }
 }
 
-module.exports = { init, connect, knock, isConnected, getPeerId };
+module.exports = { init, connect, knock, sendSignal, isConnected, getPeerId };
