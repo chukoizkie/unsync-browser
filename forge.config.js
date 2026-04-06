@@ -4,24 +4,34 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    name: 'unsync-browser',
+    productName: 'UnSync Browser',
+    executableName: 'unsync-browser',
+    appVersion: '0.4.0',
+    icon: './assets/icon',
   },
   rebuildConfig: {},
   makers: [
     {
-      name: '@electron-forge/maker-squirrel',
-      config: {},
+      name: '@electron-forge/maker-deb',
+      config: {
+        options: {
+          name: 'unsync-browser',
+          productName: 'UnSync Browser',
+          genericName: 'Web Browser',
+          description: 'A mesh-native browser — sovereign, private, P2P',
+          version: '0.4.0',
+          maintainer: 'Dexter T. Brago <dexter@unsync.uk>',
+          homepage: 'https://unsync.uk',
+          icon: './assets/icon.png',
+          categories: ['Network', 'WebBrowser'],
+          depends: ['libgtk-3-0', 'libnss3', 'libasound2t64', 'libgbm1', 'libxss1'],
+        },
+      },
     },
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
-    },
-    {
-      name: '@electron-forge/maker-deb',
-      config: {},
-    },
-    {
-      name: '@electron-forge/maker-rpm',
-      config: {},
+      platforms: ['linux'],
     },
   ],
   plugins: [
@@ -48,8 +58,6 @@ module.exports = {
         },
       },
     },
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
