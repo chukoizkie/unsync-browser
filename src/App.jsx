@@ -21,7 +21,12 @@ function normalizeUrl(input) {
   if (!t) return HOME_URL;
   // @handle shorthand → unsync://handle
   if (t.startsWith('@')) return `unsync://${t.slice(1).replace('.unsync','')}`;
-  if (t.endsWith('.unsync')) return `unsync://${t.replace('.unsync','')}`;
+  if (t.endsWith('.unsync')) {
+    const part = t.replace('.unsync','');
+    const dots = part.split('.');
+    if (dots.length === 2) return `unsync://${dots[1]}/${dots[0]}`;
+    return `unsync://${part}`;
+  }
   if (t.startsWith('unsync://')) return t;
   if (/^https?:\/\//i.test(t)) return t;
   if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(t)) return `https://${t}`;
@@ -30,9 +35,11 @@ function normalizeUrl(input) {
 
 function parseMeshUrl(url) {
   if (!url?.startsWith('unsync://')) return null;
-  const handle = url.replace('unsync://', '').split('/')[0];
-  // Convention: peerId = handle for now (Week 4: DHT lookup)
-  return { handle, targetPeerId: handle };
+  const stripped = url.replace('unsync://', '');
+  const parts    = stripped.split('/');
+  const handle   = parts[0];
+  const service  = parts[1] || null;
+  return { handle, service, targetPeerId: handle };
 }
 
 function NavBtn({ children, onClick, disabled, title }) {
@@ -304,7 +311,7 @@ export default function App() {
               {isBlank(tab.url)
                 ? <NewTabPage identity={identity} meshConnected={meshConnected} />
                 : mesh
-                  ? <MeshPage key={tab.url} handle={mesh.handle} targetPeerId={mesh.targetPeerId} />
+                  ? <MeshPage key={tab.url} handle={mesh.handle} service={mesh.service} targetPeerId={mesh.targetPeerId} />
                   : <webview ref={el => el && bindWebview(el, tab.id)} src={tab.url} style={{ flex:1, width:'100%', border:'none' }} allowpopups="true" partition="persist:unsync" />
               }
             </div>

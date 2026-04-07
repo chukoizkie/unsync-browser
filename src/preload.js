@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   meshSend:      (msg) => ipcRenderer.send('mesh-send', msg),
   onMeshSignal:  (cb)  => ipcRenderer.on('mesh-signal', (_, d) => cb(d)),
   meshKnock:     (targetPeerId) => ipcRenderer.invoke('mesh-knock', targetPeerId),
+  meshResolveHandle: (handle) => ipcRenderer.invoke('mesh-resolve-handle', handle),
   getPeerId:     () => ipcRenderer.invoke('get-peer-id'),
 
   // DHT

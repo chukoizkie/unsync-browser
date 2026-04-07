@@ -60,6 +60,7 @@ app.whenReady().then(async () => {
   ipcMain.on('mesh-send',        (_, msg)          => mesh.sendSignal(msg));
   ipcMain.handle('mesh-knock',   (_, targetPeerId) => mesh.knock(targetPeerId));
   ipcMain.handle('get-peer-id',  ()                => mesh.getPeerId());
+  ipcMain.handle('mesh-resolve-handle', (_, handle) => mesh.resolveHandle(handle));
 
   // DHT
   ipcMain.handle('dht-resolve',  (_, handle) => dht.resolve(handle));

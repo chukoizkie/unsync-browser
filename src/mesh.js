@@ -109,4 +109,33 @@ function notifyRenderer(channel, data) {
   }
 }
 
-module.exports = { init, connect, knock, sendSignal, isConnected, getPeerId };
+
+// Handle signaling-based resolve
+function resolveHandle(targetHandle) {
+  return new Promise((resolve) => {
+    if (!connected || !signalWs) return resolve({ found: false });
+
+    const timeout = setTimeout(() => {
+      resolve({ found: false });
+    }, 5000);
+
+    const handler = (data) => {
+      let msg;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
+      if ((msg.type === 'resolved' || msg.type === 'resolve_failed') && msg.handle === targetHandle.toLowerCase()) {
+        clearTimeout(timeout);
+        signalWs.removeListener('message', handler);
+        if (msg.type === 'resolved') {
+          resolve({ found: true, peerId: msg.peerId });
+        } else {
+          resolve({ found: false });
+        }
+      }
+    };
+
+    signalWs.on('message', handler);
+    signalWs.send(JSON.stringify({ type: 'resolve', handle: targetHandle }));
+  });
+}
+
+module.exports = { init, connect, knock, sendSignal, resolveHandle, isConnected, getPeerId };

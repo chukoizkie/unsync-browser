@@ -84,7 +84,7 @@ function MeshContent({ html, handle, peerId }) {
   );
 }
 
-export default function MeshPage({ handle }) {
+export default function MeshPage({ handle, service }) {
   const [state,    setState]    = useState(S.RESOLVING);
   const [html,     setHtml]     = useState(null);
   const [error,    setError]    = useState(null);
@@ -140,6 +140,16 @@ export default function MeshPage({ handle }) {
         if (msg.type === 'response_chunk') { responseBuffer += msg.chunk; return; }
         if (msg.type === 'response_end')   { setHtml(responseBuffer); return; }
         if (msg.type === 'response')       { setHtml(atob(msg.data)); return; }
+        if (msg.type === 'proxy_response') {
+          const decoded = atob(msg.data);
+          if (msg.mime && msg.mime.includes('html')) setHtml(decoded);
+          else setHtml('<pre style="background:#111;color:#0f0;padding:16px">' + decoded + '</pre>');
+          return;
+        }
+        if (msg.type === 'services_response') {
+          console.log('[dht] Peer services:', msg.services);
+          return;
+        }
       } catch { setHtml(e.data); }
     };
 
@@ -236,14 +246,20 @@ export default function MeshPage({ handle }) {
     setPeerId(null);
     setState(S.RESOLVING);
 
-    const stats = await window.electronAPI.dhtStats();
-    setDhtPeers(stats.peers);
-
-    const resolved = await window.electronAPI.dhtResolve(handle);
-    if (!resolved.found) { setState(S.NOT_FOUND); return; }
-
-    setPeerId(resolved.peerId);
-    targetRef.current = resolved.peerId;
+    // Try signaling server resolve first (for public nodes)
+    const sigResult = await window.electronAPI.meshResolveHandle(handle);
+    if (sigResult.found) {
+      setPeerId(sigResult.peerId);
+      targetRef.current = sigResult.peerId;
+    } else {
+      // Fall back to DHT
+      const stats = await window.electronAPI.dhtStats();
+      setDhtPeers(stats.peers);
+      const resolved = await window.electronAPI.dhtResolve(handle);
+      if (!resolved.found) { setState(S.NOT_FOUND); return; }
+      setPeerId(resolved.peerId);
+      targetRef.current = resolved.peerId;
+    }
 
     setState(S.KNOCKING);
     const knock = await window.electronAPI.meshKnock(resolved.peerId);
