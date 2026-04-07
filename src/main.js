@@ -1,3 +1,4 @@
+const path = require('path');
 const { app, BrowserWindow, ipcMain, protocol } = require('electron');
 const { generateIdentity, loadIdentity } = require('./identity');
 const mesh          = require('./mesh');
@@ -5,7 +6,19 @@ const dht           = require('./dht');
 const unsyncProto   = require('./unsync-protocol');
 const contentServer = require('./content-server');
 
-if (require('electron-squirrel-startup')) app.quit();
+// Handle Squirrel events on Windows
+if (process.platform === 'win32') {
+  const squirrelCommand = process.argv[1];
+  if ([
+    '--squirrel-install',
+    '--squirrel-updated', 
+    '--squirrel-uninstall',
+    '--squirrel-obsolete'
+  ].includes(squirrelCommand)) {
+    app.quit();
+    process.exit(0);
+  }
+}
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'unsync', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -23,7 +36,7 @@ const createWindow = () => {
     titleBarStyle: 'hidden',
     backgroundColor: '#080808',
     webPreferences: {
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
@@ -31,7 +44,7 @@ const createWindow = () => {
     },
   });
 
-  mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+  mainWindow.loadURL(`file://${path.join(__dirname, "../dist/index.html")}`);
   mesh.init(mainWindow);
 };
 

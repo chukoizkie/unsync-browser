@@ -3,14 +3,15 @@
   "productName": "unsync-browser",
   "version": "1.0.0",
   "description": "My Electron application description",
-  "main": ".webpack/main",
+  "main": "src/main.js",
   "private": true,
   "scripts": {
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "build": "webpack --config webpack.config.js",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac"
   },
   "keywords": [],
   "author": {
@@ -22,21 +23,16 @@
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.2",
     "@babel/preset-react": "^7.28.5",
-    "@electron-forge/cli": "^7.11.1",
-    "@electron-forge/maker-deb": "^7.11.1",
-    "@electron-forge/maker-rpm": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.11.1",
-    "@electron-forge/maker-zip": "^7.11.1",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
-    "@electron-forge/plugin-fuses": "^7.11.1",
-    "@electron-forge/plugin-webpack": "^7.11.1",
-    "@electron/fuses": "^1.8.0",
     "@vercel/webpack-asset-relocator-loader": "^1.7.3",
     "babel-loader": "^10.1.1",
     "css-loader": "^6.11.0",
     "electron": "41.1.1",
+    "electron-builder": "^26.8.1",
+    "html-webpack-plugin": "^5.6.6",
     "node-loader": "^2.1.0",
-    "style-loader": "^3.3.4"
+    "style-loader": "^3.3.4",
+    "webpack": "^5.105.4",
+    "webpack-cli": "^7.0.2"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
@@ -44,5 +40,83 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "ws": "^8.20.0"
+  },
+  "build": {
+    "appId": "uk.unsync.browser",
+    "productName": "UnSync Browser",
+    "copyright": "Copyright © 2026 Dexter T. Brago",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/main.js",
+      "src/preload.js",
+      "src/identity.js",
+      "src/mesh.js",
+      "src/dht.js",
+      "src/unsync-protocol.js",
+      "src/content-server.js",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "UnSync Browser",
+      "license": "LICENSE",
+      "artifactName": "UnSync-Browser-Setup-${version}.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Network"
+    },
+    "deb": {
+      "artifactName": "unsync-browser_${version}_amd64.deb",
+      "depends": [
+        "libgtk-3-0",
+        "libnss3",
+        "libasound2t64",
+        "libgbm1"
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.utilities"
+    }
   }
 }

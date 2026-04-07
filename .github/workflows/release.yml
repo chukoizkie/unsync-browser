@@ -3,26 +3,27 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'        # triggers on v0.4.0, v1.0.0, etc.
-  workflow_dispatch: # manual trigger from GitHub UI
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             platform: linux
-            artifact: out/make/deb/x64/*.deb
+            artifact: release/*.deb
             name: Linux (.deb)
           - os: windows-latest
             platform: win32
-            artifact: out/make/squirrel.windows/x64/*.exe
+            artifact: release/*.exe
             name: Windows (.exe)
           - os: macos-latest
             platform: darwin
-            artifact: out/make/zip/darwin/x64/*.zip
-            name: macOS (.zip)
+            artifact: release/*.dmg
+            name: macOS (.dmg)
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
@@ -41,24 +42,43 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev libnss3 libxss1 \
-            libasound2t64 libgbm-dev zip
+          sudo apt-get install -y libgtk-3-dev libnss3 libxss1 libasound2t64 libgbm-dev
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Make distributables
-        run: npm run make
+      - name: Build webpack
+        run: npm run build
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: npx electron-builder --linux --x64
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build macOS
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: List release files
+        run: ls -la release/ 2>/dev/null || dir release\ 2>nul || echo "No release dir"
+        shell: bash
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: unsync-browser-${{ matrix.platform }}
           path: ${{ matrix.artifact }}
-          retention-days: 30
+          if-no-files-found: warn
 
   release:
     needs: build
@@ -72,12 +92,13 @@ jobs:
         with:
           path: artifacts
 
+      - name: List artifacts
+        run: find artifacts -type f
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           generate_release_notes: true
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
