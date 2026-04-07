@@ -61,11 +61,12 @@ function connectRelay() {
 function handleSignalMessage(msg) {
   // Knock response
   if (msg.type === 'knock_response' || msg.type === 'peer_offline') {
-    const knock = pendingKnocks.get(msg.targetId || msg.to || msg.from);
+    const lookupKey = msg.targetId || msg.id || msg.to || msg.from;
+    const knock = pendingKnocks.get(lookupKey);
     if (knock) {
       clearTimeout(knock.timeout);
-      pendingKnocks.delete(msg.targetId || msg.to || msg.from);
-      knock.resolve({ online: msg.type === 'knock_response', peerId: msg.from || msg.targetId });
+      pendingKnocks.delete(lookupKey);
+      knock.resolve({ online: msg.type === 'knock_response', peerId: msg.from || msg.targetId || msg.id });
     }
     // Also forward to renderer for MeshPage
     notifyRenderer('mesh-signal', msg);

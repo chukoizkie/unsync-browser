@@ -247,25 +247,26 @@ export default function MeshPage({ handle, service }) {
     setState(S.RESOLVING);
 
     // Try signaling server resolve first (for public nodes)
+    let resolvedPeerId = null;
     const sigResult = await window.electronAPI.meshResolveHandle(handle);
     if (sigResult.found) {
-      setPeerId(sigResult.peerId);
-      targetRef.current = sigResult.peerId;
+      resolvedPeerId = sigResult.peerId;
     } else {
       // Fall back to DHT
       const stats = await window.electronAPI.dhtStats();
       setDhtPeers(stats.peers);
-      const resolved = await window.electronAPI.dhtResolve(handle);
-      if (!resolved.found) { setState(S.NOT_FOUND); return; }
-      setPeerId(resolved.peerId);
-      targetRef.current = resolved.peerId;
+      const dhtResult = await window.electronAPI.dhtResolve(handle);
+      if (!dhtResult.found) { setState(S.NOT_FOUND); return; }
+      resolvedPeerId = dhtResult.peerId;
     }
+    setPeerId(resolvedPeerId);
+    targetRef.current = resolvedPeerId;
 
     setState(S.KNOCKING);
-    const knock = await window.electronAPI.meshKnock(resolved.peerId);
+    const knock = await window.electronAPI.meshKnock(resolvedPeerId);
     if (!knock.online) { setState(S.OFFLINE); return; }
 
-    await initiateConnection(resolved.peerId);
+    await initiateConnection(resolvedPeerId);
   };
 
   useEffect(() => {
